@@ -53,10 +53,8 @@ let audioBlobUrl = null;
 let finalTranscript = "";
 let fluencyMetrics = null;
 let timerInterval = null;
-let countdownInterval = null;
 let timeLeft = 60;
 let recording = false;
-let inCountdown = false;
 
 const typeList = document.getElementById('typeList');
 const questionText = document.getElementById('questionText');
@@ -106,7 +104,7 @@ function renderDurationOptions(){
 
 typeList.addEventListener('click', (e) => {
   const card = e.target.closest('.type-card');
-  if (!card || recording || inCountdown) return;
+  if (!card || recording) return;
   selectedTypeId = card.dataset.type;
   currentSpeakingType = speakingTypes.find(t => t.id === selectedTypeId) || speakingTypes[0];
   renderTypeList();
@@ -115,7 +113,7 @@ typeList.addEventListener('click', (e) => {
 
 durationSelect.addEventListener('click', (e) => {
   const btn = e.target.closest('.dur-opt');
-  if (!btn || recording || inCountdown) return;
+  if (!btn || recording) return;
   selectedDuration = parseInt(btn.dataset.dur, 10);
   renderDurationOptions();
   timeLeft = selectedDuration;
@@ -155,7 +153,7 @@ function resetSession(){
   timeLeft = selectedDuration;
   timerDisplay.textContent = timeLeft;
   timerLabel.textContent = "seconds ready";
-  stageEl.classList.remove('is-countdown', 'is-recording');
+  stageEl.classList.remove('is-recording');
   setStatus('idle', 'Idle — press Start Recording when ready');
 }
 
@@ -164,42 +162,19 @@ function setStatus(kind, text){
   statusText.textContent = text;
 }
 
-// ---------- Countdown before recording ----------
-function beginCountdown(){
+async function startRecording(){
   if (!currentTopic) {
     errorArea.innerHTML = `<div class="error-box">Please click "New Topic" first to get a question.</div>`;
     return;
   }
 
   errorArea.innerHTML = "";
-  inCountdown = true;
-  recordBtn.disabled = true;
-  newTopicBtn.disabled = true;
-  retryTopicBtn.disabled = true;
-  stageEl.classList.add('is-countdown');
-  let count = 3;
-  timerDisplay.textContent = count;
-  timerLabel.textContent = "get ready...";
-  setStatus('wait', 'Recording starts shortly — take a breath');
-
-  countdownInterval = setInterval(() => {
-    count--;
-    if (count <= 0) {
-      clearInterval(countdownInterval);
-      stageEl.classList.remove('is-countdown');
-      inCountdown = false;
-      startRecording();
-    } else {
-      timerDisplay.textContent = count;
-    }
-  }, 800);
-}
-
-async function startRecording(){
-  errorArea.innerHTML = "";
   finalTranscript = "";
   fluencyMetrics = null;
   audioChunks = [];
+  recordBtn.disabled = true;
+  newTopicBtn.disabled = true;
+  retryTopicBtn.disabled = true;
   transcriptBox.classList.remove('empty');
   transcriptBox.textContent = "Recording...";
 
@@ -310,7 +285,7 @@ async function transcribeAudio(blob){
   }
 }
 
-recordBtn.addEventListener('click', beginCountdown);
+recordBtn.addEventListener('click', startRecording);
 stopBtn.addEventListener('click', finishRecording);
 
 // ---------- Analysis ----------

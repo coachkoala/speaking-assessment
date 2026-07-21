@@ -15,6 +15,8 @@ CEFR spoken production (A1-C2): judge range, accuracy, fluency, coherence, and t
 
 Duration and development matter as much as grammar. A grammatically clean but very brief, underdeveloped answer that only fills a fraction of the speaker's chosen response time — or contains long stretches of silence — is NOT a high-band response under either framework: sustaining relevant speech for close to the full available time is itself part of what "fluency" and "task development" measure. Silence is not fluency. When the timing data shows low time-utilization or low speech coverage, cap fluency_coherence and task_response accordingly and say so explicitly and specifically in those notes (cite the actual numbers).
 
+Response length is also a hard ceiling on the OVERALL cefr_level and ielts_band, not just the individual category notes — a real examiner cannot certify Band 6+/B2+ from a single short sentence, no matter how accurate, because there isn't enough language sample to demonstrate the sustained range, cohesion, and complexity those levels require. A one-sentence or otherwise minimal response should top out around A2/Band 4, even if that one sentence is flawless.
+
 Respond ONLY with a valid JSON object (no markdown fences, no preamble) with this exact structure:
 
 {
@@ -38,6 +40,49 @@ Respond ONLY with a valid JSON object (no markdown fences, no preamble) with thi
 }
 
 Base your assessment strictly on the transcript AND the timing data provided. Be realistic and rigorous, not overly generous — a short, low-effort, or mostly-silent response should score correspondingly low even if free of grammar errors. For sentence_upgrades, pick 2-4 real sentences or phrases from the transcript that were grammatically fine but simple/flat, and show a more advanced, natural-sounding alternative a fluent speaker would use.`;
+
+// Deterministic backstop: an LLM can be talked into a generous band even
+// with strict instructions, so cap the overall level by transcript length
+// regardless of what the model returns. A handful of words simply cannot
+// demonstrate B2+ range/coherence, no matter how accurate they are.
+const CEFR_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+const LENGTH_CAPS = [
+  { maxWords: 8, level: 'A1', band: 3.0, categoryCap: 25 },
+  { maxWords: 20, level: 'A2', band: 4.0, categoryCap: 40 },
+  { maxWords: 40, level: 'B1', band: 5.0, categoryCap: 55 },
+  { maxWords: 70, level: 'B2', band: 6.5, categoryCap: 70 }
+];
+
+function applyLengthCap(result, transcript) {
+  const wordCount = (transcript || '').trim().split(/\s+/).filter(Boolean).length;
+  const cap = LENGTH_CAPS.find(c => wordCount < c.maxWords);
+  if (!cap) return result;
+
+  const modelRank = CEFR_ORDER.indexOf(result.cefr_level);
+  const capRank = CEFR_ORDER.indexOf(cap.level);
+  let capped = false;
+
+  if (modelRank === -1 || modelRank > capRank) {
+    result.cefr_level = cap.level;
+    capped = true;
+  }
+  if (typeof result.ielts_band !== 'number' || result.ielts_band > cap.band) {
+    result.ielts_band = cap.band;
+    capped = true;
+  }
+  ['fluency_coherence', 'task_response'].forEach(key => {
+    const cat = result.categories?.[key];
+    if (cat && typeof cat.score === 'number' && cat.score > cap.categoryCap) {
+      cat.score = cap.categoryCap;
+      capped = true;
+    }
+  });
+
+  if (capped) {
+    result.summary = `${result.summary || ''} (Note: this response was only ${wordCount} word${wordCount === 1 ? '' : 's'} — too short to demonstrate a higher level, so the score is capped regardless of grammar quality.)`.trim();
+  }
+  return result;
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -111,6 +156,8 @@ Provide the JSON assessment now.`;
     } catch (parseErr) {
       return res.status(502).json({ error: 'Could not parse the analysis response. Please try again.' });
     }
+
+    result = applyLengthCap(result, transcript);
 
     return res.status(200).json({ result });
 

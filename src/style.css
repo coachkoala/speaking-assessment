@@ -160,7 +160,6 @@ body{
   transition: all 0.3s ease;
 }
 .stage.is-recording{ border-color: rgba(255,59,78,0.4); background: linear-gradient(180deg, rgba(255,59,78,0.08), transparent); box-shadow: 0 0 60px -15px rgba(255,59,78,0.4) inset; }
-.stage.is-countdown{ border-color: rgba(255,184,77,0.4); background: linear-gradient(180deg, rgba(255,184,77,0.08), transparent); }
 
 .timer{
   font-family:'Space Grotesk', sans-serif; font-size: clamp(42px,12vw,58px); font-weight:700;
@@ -169,7 +168,6 @@ body{
   -webkit-background-clip:text; background-clip:text; color:transparent;
 }
 .stage.is-recording .timer{ background: linear-gradient(135deg, #fff, var(--red-bright)); -webkit-background-clip:text; background-clip:text; }
-.stage.is-countdown .timer{ background: linear-gradient(135deg, #fff, var(--amber)); -webkit-background-clip:text; background-clip:text; }
 .timer-label{ font-family:'JetBrains Mono', monospace; font-size:10px; text-transform:uppercase; letter-spacing:0.14em; color: var(--text-faint); margin-top:10px; }
 
 .wave{ display:flex; align-items:center; justify-content:center; gap:5px; height:36px; margin-top:18px; }
