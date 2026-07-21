@@ -21,73 +21,59 @@
     </div>
   </div>
 
-  <div class="card" id="setupCard">
+  <div class="card">
     <div class="eyebrow">Practice Setup</div>
 
-    <div id="setupFull">
-      <div class="section-title">Speaking Type</div>
-      <div class="type-list" id="typeList"></div>
+    <div class="section-title">Speaking Type</div>
+    <div class="type-list" id="typeList"></div>
 
-      <div class="section-title">Response Time</div>
-      <div class="duration-select" id="durationSelect"></div>
+    <div class="section-title">Response Time</div>
+    <div class="duration-select" id="durationSelect"></div>
 
-      <button class="btn primary full" id="startPracticeBtn">Start Practice</button>
+    <div class="section-divider"></div>
+    <div class="eyebrow">Session Prompt</div>
+
+    <div class="prompt-block">
+      <div class="label">Topic</div>
+      <div class="question" id="questionText"></div>
     </div>
 
-    <div class="setup-summary" id="setupSummary" hidden>
-      <div class="setup-summary-info">
-        <span class="setup-summary-emoji" id="summaryEmoji"></span>
-        <span class="setup-summary-text" id="summaryText"></span>
-      </div>
-      <button class="link-back" id="changeTypeBtn">Change</button>
+    <div class="btn-row">
+      <button class="btn secondary" id="newTopicBtn">New Topic</button>
+      <button class="btn secondary" id="retryTopicBtn">Retry This Topic</button>
     </div>
 
-    <div class="practice-section" id="practiceCard" hidden>
-      <div class="section-divider"></div>
-      <div class="eyebrow">Session Prompt</div>
-
-      <div class="prompt-block">
-        <div class="label">Topic</div>
-        <div class="question" id="questionText"></div>
+    <div class="stage" id="stage">
+      <div class="timer" id="timerDisplay">60</div>
+      <div class="timer-label" id="timerLabel">seconds ready</div>
+      <div class="wave idle" id="wave">
+        <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
       </div>
-
-      <div class="btn-row">
-        <button class="btn secondary" id="newTopicBtn">New Topic</button>
-        <button class="btn secondary" id="retryTopicBtn">Retry This Topic</button>
-      </div>
-
-      <div class="stage" id="stage">
-        <div class="timer" id="timerDisplay">60</div>
-        <div class="timer-label" id="timerLabel">seconds ready</div>
-        <div class="wave idle" id="wave">
-          <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
-        </div>
-      </div>
-
-      <div class="btn-row">
-        <button class="btn primary" id="recordBtn" style="flex: 2 1 auto;">Start Recording</button>
-        <button class="btn destructive" id="stopBtn" disabled>Stop Early</button>
-      </div>
-
-      <div class="status-line" id="statusLine">
-        <span class="dot" id="statusDot"></span>
-        <span id="statusText">Idle — press Start Recording when ready</span>
-      </div>
-
-      <div class="transcript-box empty" id="transcriptBox">
-        Your transcript will appear here after you finish recording.
-      </div>
-
-      <div id="audioArea"></div>
-
-      <div class="btn-row">
-        <button class="btn primary full" id="analyzeBtn" disabled>Analyze My Speaking</button>
-      </div>
-
-      <div id="errorArea"></div>
-      <div id="loadingArea"></div>
-      <div id="reportArea"></div>
     </div>
+
+    <div class="btn-row">
+      <button class="btn primary" id="recordBtn" style="flex: 2 1 auto;">Start Recording</button>
+      <button class="btn destructive" id="stopBtn" disabled>Stop Early</button>
+    </div>
+
+    <div class="status-line" id="statusLine">
+      <span class="dot" id="statusDot"></span>
+      <span id="statusText">Idle — press Start Recording when ready</span>
+    </div>
+
+    <div class="transcript-box empty" id="transcriptBox">
+      Your transcript will appear here after you finish recording.
+    </div>
+
+    <div id="audioArea"></div>
+
+    <div class="btn-row">
+      <button class="btn primary full" id="analyzeBtn" disabled>Analyze My Speaking</button>
+    </div>
+
+    <div id="errorArea"></div>
+    <div id="loadingArea"></div>
+    <div id="reportArea"></div>
   </div>
 
   <footer>Transcribed & analyzed by AI · Not an official certification</footer>

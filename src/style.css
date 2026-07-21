@@ -123,28 +123,6 @@ body{
 .btn.full{ flex: 1 1 100%; }
 .btn.small{ padding:9px 14px; font-size:12.5px; flex:none; }
 
-.link-back{
-  display:inline-flex; align-items:center; gap:4px; background:none; border:none; cursor:pointer;
-  font-family:'JetBrains Mono', monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.06em;
-  color: var(--text-faint); padding:0; margin-bottom:14px; transition: color 0.15s ease;
-}
-.link-back:hover{ color: var(--blue-bright); }
-.link-back:disabled{ opacity:0.3; cursor:not-allowed; }
-
-.setup-summary{
-  display:flex; align-items:center; justify-content:space-between; gap:12px;
-  animation: fadeUp 0.35s ease both;
-}
-.setup-summary-info{ display:flex; align-items:center; gap:10px; min-width:0; }
-.setup-summary-emoji{ font-size:22px; line-height:1; flex-shrink:0; }
-.setup-summary-text{ font-family:'Space Grotesk', sans-serif; font-weight:600; font-size:15px; color: var(--text); }
-.setup-summary-text .dur{
-  font-family:'JetBrains Mono', monospace; font-weight:500; font-size:11px; color: var(--text-faint);
-  margin-left:8px; text-transform:uppercase; letter-spacing:0.04em;
-}
-.setup-summary .link-back{ margin-bottom:0; flex-shrink:0; }
-
-.practice-section.card-enter{ animation: fadeUp 0.4s cubic-bezier(0.16,1,0.3,1) both; }
 .section-divider{ height:1px; background: var(--line); margin: clamp(18px,4vw,22px) 0; }
 
 .type-list{ display:flex; flex-direction:column; gap:10px; margin-bottom: clamp(18px,4vw,22px); }

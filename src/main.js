@@ -58,15 +58,7 @@ let timeLeft = 60;
 let recording = false;
 let inCountdown = false;
 
-const setupCard = document.getElementById('setupCard');
-const setupFull = document.getElementById('setupFull');
-const setupSummary = document.getElementById('setupSummary');
-const summaryEmoji = document.getElementById('summaryEmoji');
-const summaryText = document.getElementById('summaryText');
-const changeTypeBtn = document.getElementById('changeTypeBtn');
-const practiceCard = document.getElementById('practiceCard');
 const typeList = document.getElementById('typeList');
-const startPracticeBtn = document.getElementById('startPracticeBtn');
 const questionText = document.getElementById('questionText');
 const newTopicBtn = document.getElementById('newTopicBtn');
 const retryTopicBtn = document.getElementById('retryTopicBtn');
@@ -114,40 +106,20 @@ function renderDurationOptions(){
 
 typeList.addEventListener('click', (e) => {
   const card = e.target.closest('.type-card');
-  if (!card) return;
+  if (!card || recording || inCountdown) return;
   selectedTypeId = card.dataset.type;
+  currentSpeakingType = speakingTypes.find(t => t.id === selectedTypeId) || speakingTypes[0];
   renderTypeList();
+  pickTopic(false);
 });
 
 durationSelect.addEventListener('click', (e) => {
   const btn = e.target.closest('.dur-opt');
-  if (!btn) return;
+  if (!btn || recording || inCountdown) return;
   selectedDuration = parseInt(btn.dataset.dur, 10);
   renderDurationOptions();
-});
-
-startPracticeBtn.addEventListener('click', () => {
-  currentSpeakingType = speakingTypes.find(t => t.id === selectedTypeId) || speakingTypes[0];
-  pickTopic(false);
-
-  summaryEmoji.textContent = currentSpeakingType.emoji;
-  summaryText.innerHTML = `${escapeHtml(currentSpeakingType.title)}<span class="dur">${selectedDuration}s response</span>`;
-  setupFull.hidden = true;
-  setupSummary.hidden = false;
-
-  practiceCard.hidden = false;
-  practiceCard.classList.remove('card-enter');
-  void practiceCard.offsetWidth; // restart the animation on repeat use
-  practiceCard.classList.add('card-enter');
-  practiceCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-});
-
-changeTypeBtn.addEventListener('click', () => {
-  if (recording || inCountdown) return;
-  setupSummary.hidden = true;
-  setupFull.hidden = false;
-  practiceCard.hidden = true;
-  setupCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  timeLeft = selectedDuration;
+  timerDisplay.textContent = timeLeft;
 });
 
 // ---------- Topic selection ----------
@@ -204,7 +176,6 @@ function beginCountdown(){
   recordBtn.disabled = true;
   newTopicBtn.disabled = true;
   retryTopicBtn.disabled = true;
-  changeTypeBtn.disabled = true;
   stageEl.classList.add('is-countdown');
   let count = 3;
   timerDisplay.textContent = count;
@@ -253,7 +224,6 @@ async function startRecording(){
     recordBtn.disabled = false;
     newTopicBtn.disabled = false;
     retryTopicBtn.disabled = false;
-    changeTypeBtn.disabled = false;
     return;
   }
 
@@ -292,7 +262,6 @@ function finishRecording(){
   stopBtn.disabled = true;
   newTopicBtn.disabled = false;
   retryTopicBtn.disabled = false;
-  changeTypeBtn.disabled = false;
   timerLabel.textContent = "seconds — done";
 
   setStatus('wait', 'Transcribing your recording...');
@@ -822,3 +791,4 @@ shareSendBtn.addEventListener('click', () => {
 // init
 renderTypeList();
 renderDurationOptions();
+pickTopic(false);
