@@ -210,6 +210,12 @@ async function startRecording(){
   transcriptBox.classList.remove('empty');
   transcriptBox.textContent = "Listening...";
 
+  // Start SpeechRecognition before requesting a separate getUserMedia stream —
+  // on some Android/Chrome combinations, starting MediaRecorder's mic capture
+  // first starves SpeechRecognition of real audio (it reports audiostart but
+  // receives silence). Giving recognition the mic first avoids that.
+  startRecognition();
+
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     mediaRecorder = new MediaRecorder(stream);
@@ -232,8 +238,6 @@ async function startRecording(){
     retryTopicBtn.disabled = false;
     return;
   }
-
-  startRecognition();
 
   recording = true;
   timeLeft = selectedDuration;
