@@ -83,6 +83,10 @@ export default async function handler(req, res) {
     form.append('file', new Blob([audioBuffer], { type: contentType }), 'recording.webm');
     form.append('model', 'whisper-1');
     form.append('response_format', 'verbose_json');
+    // This app only assesses English speaking — pin the language instead of
+    // relying on Whisper's auto-detection, which can misfire (e.g. picking
+    // Indonesian) on accented or short audio and mangle the transcript.
+    form.append('language', 'en');
 
     const upstream = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
