@@ -346,7 +346,7 @@ analyzeBtn.addEventListener('click', async () => {
     const response = await fetch('/api/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ topic: currentTopic, transcript, fluency: fluencyMetrics })
+      body: JSON.stringify({ topic: currentTopic, transcript, fluency: fluencyMetrics, targetDurationSeconds: selectedDuration })
     });
 
     const data = await response.json();

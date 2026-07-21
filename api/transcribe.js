@@ -23,21 +23,40 @@ function computeFluency(data) {
   let pauseCount = 0;
   let totalPauseSeconds = 0;
   let longestPauseSeconds = 0;
-  for (let i = 1; i < segments.length; i++) {
-    const gap = segments[i].start - segments[i - 1].end;
+  let speechSeconds = 0;
+
+  const trackPause = (gap) => {
     if (gap > PAUSE_THRESHOLD_SECONDS) {
       pauseCount++;
       totalPauseSeconds += gap;
       longestPauseSeconds = Math.max(longestPauseSeconds, gap);
     }
+  };
+
+  if (segments.length) {
+    // Leading silence (before the first word) and trailing silence (after the
+    // last word, up to the end of the recording) are just as much "dead air"
+    // as gaps between words — count them the same way, otherwise someone who
+    // talks briefly then goes silent for the rest of their chosen response
+    // time looks identical to someone who spoke fluently the whole time.
+    trackPause(segments[0].start);
+    speechSeconds += segments[0].end - segments[0].start;
+    for (let i = 1; i < segments.length; i++) {
+      trackPause(segments[i].start - segments[i - 1].end);
+      speechSeconds += segments[i].end - segments[i].start;
+    }
+    trackPause(duration - segments[segments.length - 1].end);
   }
+
+  const speechCoverage = duration > 0 ? Math.max(0, Math.min(1, speechSeconds / duration)) : 0;
 
   return {
     durationSeconds: Math.round(duration * 10) / 10,
     wordsPerMinute,
     pauseCount,
     totalPauseSeconds: Math.round(totalPauseSeconds * 10) / 10,
-    longestPauseSeconds: Math.round(longestPauseSeconds * 10) / 10
+    longestPauseSeconds: Math.round(longestPauseSeconds * 10) / 10,
+    speechCoverage: Math.round(speechCoverage * 100) / 100
   };
 }
 

@@ -1,16 +1,30 @@
 // Vercel Serverless Function — keeps the OpenAI API key on the server.
 // The browser only ever talks to /api/analyze, never to OpenAI directly.
 
-const SYSTEM_PROMPT = `You are a certified English language examiner trained in CEFR and IELTS speaking assessment frameworks. You will receive a transcript of a spoken English response to a small-talk topic. Analyze it and respond ONLY with a valid JSON object (no markdown fences, no preamble) with this exact structure:
+const SYSTEM_PROMPT = `You are a certified IELTS Speaking examiner and a CEFR-aligned language assessor. You will receive a transcript of a spoken English response to a speaking-practice topic, plus real timing data measured from the audio (pace, pauses/silence, and how much of the speaker's own chosen response time was actually used). Score strictly to official standards — do not inflate a score just because the few sentences produced happen to be grammatically clean.
+
+CALIBRATION — apply these the same way a real examiner would:
+
+IELTS Speaking bands (apply per category, then derive an overall band):
+- Band 8-9: Fluent with only occasional hesitation; wide, natural, idiomatic vocabulary; wide range of grammar with only rare, non-systematic errors; fully develops the topic with relevant detail, using close to the full time available.
+- Band 6-7: Willing to speak at length but may lose coherence at times or over-use certain connectives; some flexibility and paraphrase but with noticeable gaps; a mix of simple and complex structures with some errors; generally develops the topic, though may not sustain it for the whole time available.
+- Band 4-5: Noticeable hesitation, repetition, and/or slow speech; limited vocabulary often inadequate for the topic; basic sentence forms with frequent errors once structures get more complex; the response may be short, underdeveloped, or heavily dependent on the prompt itself for content.
+- Band 2-3: Very limited response, long pauses before nearly every utterance, minimal usable vocabulary.
+
+CEFR spoken production (A1-C2): judge range, accuracy, fluency, coherence, and the ability to sustain a description or argument appropriate to each level — A1-A2: short, simple, isolated phrases with basic connectors only; B1: can link phrases simply to give a straightforward description, with noticeable hesitation; B2: clear, reasonably fluent, detailed description with only occasional hesitation; C1-C2: fluent, spontaneous, well-structured, wide range of cohesive devices.
+
+Duration and development matter as much as grammar. A grammatically clean but very brief, underdeveloped answer that only fills a fraction of the speaker's chosen response time — or contains long stretches of silence — is NOT a high-band response under either framework: sustaining relevant speech for close to the full available time is itself part of what "fluency" and "task development" measure. Silence is not fluency. When the timing data shows low time-utilization or low speech coverage, cap fluency_coherence and task_response accordingly and say so explicitly and specifically in those notes (cite the actual numbers).
+
+Respond ONLY with a valid JSON object (no markdown fences, no preamble) with this exact structure:
 
 {
   "cefr_level": "A1|A2|B1|B2|C1|C2",
   "ielts_band": number (e.g. 6.5),
   "categories": {
-    "grammar_accuracy": { "score": number (0-100), "note": "short specific note" },
-    "vocabulary_range": { "score": number (0-100), "note": "short specific note" },
-    "fluency_coherence": { "score": number (0-100), "note": "short specific note, citing the speech timing data (pace, pauses) when it's provided" },
-    "task_response": { "score": number (0-100), "note": "short specific note" }
+    "grammar_accuracy": { "score": number (0-100), "note": "short specific note, referencing Grammatical Range and Accuracy" },
+    "vocabulary_range": { "score": number (0-100), "note": "short specific note, referencing Lexical Resource" },
+    "fluency_coherence": { "score": number (0-100), "note": "short specific note that must cite the timing data (pace, pauses, time-utilization %) when it's provided" },
+    "task_response": { "score": number (0-100), "note": "short specific note on whether the response was adequately developed for the time given" }
   },
   "strengths": ["short point 1", "short point 2"],
   "areas_to_improve": ["short point 1", "short point 2", "short point 3"],
@@ -23,7 +37,7 @@ const SYSTEM_PROMPT = `You are a certified English language examiner trained in 
   "summary": "2-3 sentence overall feedback in an encouraging but honest tone"
 }
 
-Base your assessment strictly on the transcript provided. Be realistic, not overly generous. This is a casual small-talk response, so calibrate expectations accordingly but still assess genuine language ability shown. For sentence_upgrades, pick 2-4 real sentences or phrases from the transcript that were grammatically fine but simple/flat, and show a more advanced, natural-sounding alternative a fluent speaker would use — focus on elevating vocabulary and phrasing, not just fixing errors.`;
+Base your assessment strictly on the transcript AND the timing data provided. Be realistic and rigorous, not overly generous — a short, low-effort, or mostly-silent response should score correspondingly low even if free of grammar errors. For sentence_upgrades, pick 2-4 real sentences or phrases from the transcript that were grammatically fine but simple/flat, and show a more advanced, natural-sounding alternative a fluent speaker would use.`;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -31,7 +45,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { topic, transcript, fluency } = req.body || {};
+  const { topic, transcript, fluency, targetDurationSeconds } = req.body || {};
   if (!topic || !transcript) {
     return res.status(400).json({ error: 'Missing topic or transcript' });
   }
@@ -43,9 +57,20 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Server is missing API configuration' });
   }
 
-  const fluencyNote = fluency
-    ? `\n\nSpeech timing data measured from the actual audio (not estimated): speaking pace ~${fluency.wordsPerMinute} words per minute, ${fluency.pauseCount} noticeable pause(s) totaling ${fluency.totalPauseSeconds}s (longest single pause: ${fluency.longestPauseSeconds}s), total speaking duration ${fluency.durationSeconds}s. Use this real timing data, not just sentence structure, to inform the fluency_coherence score and note.`
-    : '';
+  let fluencyNote = '';
+  if (fluency) {
+    const parts = [
+      `speaking pace ~${fluency.wordsPerMinute} words per minute`,
+      `${fluency.pauseCount} noticeable pause(s)/silence gap(s) totaling ${fluency.totalPauseSeconds}s (longest: ${fluency.longestPauseSeconds}s)`,
+      `${Math.round((fluency.speechCoverage ?? 1) * 100)}% of the recorded clip was actual speech (the rest was silence)`,
+      `total recorded duration ${fluency.durationSeconds}s`
+    ];
+    if (targetDurationSeconds) {
+      const utilization = Math.round((fluency.durationSeconds / targetDurationSeconds) * 100);
+      parts.push(`the speaker chose a ${targetDurationSeconds}s response time but only recorded ${fluency.durationSeconds}s (${utilization}% of their chosen time)`);
+    }
+    fluencyNote = `\n\nSpeech timing data measured from the actual audio (not estimated): ${parts.join('; ')}. This is real measured data, not a guess — weigh it heavily in fluency_coherence and task_response. A response that fills only a small fraction of the chosen response time, or is mostly silence, is underdeveloped and must be scored down accordingly, even if the words spoken are grammatically correct.`;
+  }
 
   const userPrompt = `Topic given to the speaker: "${topic}"
 
