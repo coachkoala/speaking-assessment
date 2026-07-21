@@ -76,6 +76,19 @@
   <footer>Transcribed & analyzed by AI · Not an official certification</footer>
 </div>
 
+<div class="share-overlay" id="shareOverlay" hidden>
+  <div class="share-overlay-inner">
+    <button class="share-close" id="shareCloseBtn" aria-label="Close">×</button>
+    <div class="share-card-preview">
+      <canvas id="shareCardCanvas" width="1080" height="1920"></canvas>
+    </div>
+    <div class="btn-row">
+      <button class="btn secondary" id="shareDownloadBtn">Download</button>
+      <button class="btn primary" id="shareSendBtn">Share</button>
+    </div>
+  </div>
+</div>
+
 <script type="module" src="/src/main.js"></script>
 
 </body>

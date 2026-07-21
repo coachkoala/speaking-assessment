@@ -55,6 +55,11 @@ const analyzeBtn = document.getElementById('analyzeBtn');
 const errorArea = document.getElementById('errorArea');
 const loadingArea = document.getElementById('loadingArea');
 const reportArea = document.getElementById('reportArea');
+const shareOverlay = document.getElementById('shareOverlay');
+const shareCardCanvas = document.getElementById('shareCardCanvas');
+const shareCloseBtn = document.getElementById('shareCloseBtn');
+const shareDownloadBtn = document.getElementById('shareDownloadBtn');
+const shareSendBtn = document.getElementById('shareSendBtn');
 
 document.getElementById('sessionNum').textContent = 'REF-' + Math.random().toString(36).slice(2,8).toUpperCase();
 
@@ -300,9 +305,10 @@ const CEFR_TIERS = {
 };
 
 function buildRadarChart(points){
-  const size = 240;
+  const size = 280;
   const center = size / 2;
-  const maxR = 90;
+  const maxR = 70;
+  const labelOffset = 22;
   const n = points.length;
   const angleStep = (2 * Math.PI) / n;
   const startAngle = -Math.PI / 2;
@@ -326,19 +332,19 @@ function buildRadarChart(points){
   const shape = `<polygon class="radar-shape" points="${shapePts}" />`;
 
   const labels = points.map((p, i) => {
-    const [x, y] = coordAt(i, maxR + 16);
+    const [x, y] = coordAt(i, maxR + labelOffset);
     const anchor = Math.abs(x - center) < 4 ? 'middle' : (x > center ? 'start' : 'end');
     return `<text class="radar-label" x="${x}" y="${y}" text-anchor="${anchor}" dominant-baseline="middle">${escapeHtml(p.label)}</text>`;
   }).join('');
 
-  return `<svg class="radar-chart" viewBox="0 0 ${size} ${size}">${gridPolys}${axisLines}${shape}${labels}</svg>`;
+  return `<svg class="radar-chart" viewBox="0 0 ${size} ${size}" style="overflow:visible">${gridPolys}${axisLines}${shape}${labels}</svg>`;
 }
 
 function renderReport(result, transcript){
   const cats = result.categories || {};
   const catKeys = [
     { key: 'grammar_accuracy', label: 'Grammar Accuracy', short: 'Grammar' },
-    { key: 'vocabulary_range', label: 'Vocabulary Range', short: 'Vocabulary' },
+    { key: 'vocabulary_range', label: 'Vocabulary Range', short: 'Vocab' },
     { key: 'fluency_coherence', label: 'Fluency & Coherence', short: 'Fluency' },
     { key: 'task_response', label: 'Task Response', short: 'Task' }
   ];
@@ -406,7 +412,7 @@ function renderReport(result, transcript){
       </div>
 
       <div class="btn-row">
-        <button class="btn secondary full" id="shareResultBtn">Share Result</button>
+        <button class="btn secondary full" id="shareResultBtn">Create Share Card</button>
       </div>
 
       ${strengths ? `<div class="section-title">Strengths</div><ul class="feedback-list">${strengths}</ul>` : ''}
@@ -432,18 +438,15 @@ function renderReport(result, transcript){
 
   const shareBtn = document.getElementById('shareResultBtn');
   if (shareBtn) {
-    shareBtn.addEventListener('click', async () => {
-      const shareText = `My English Speaking Assessment: ${overallScore}/100 (${tierName || result.cefr_level} · IELTS ${result.ielts_band ?? '—'})\nTopic: "${currentTopic}"\n${result.summary || ''}`;
-      if (navigator.share) {
-        try { await navigator.share({ title: 'Speaking Assessment Result', text: shareText }); } catch(e) {}
-      } else if (navigator.clipboard) {
-        try {
-          await navigator.clipboard.writeText(shareText);
-          const original = shareBtn.textContent;
-          shareBtn.textContent = 'Copied!';
-          setTimeout(() => { shareBtn.textContent = original; }, 1500);
-        } catch(e) {}
-      }
+    shareBtn.addEventListener('click', () => {
+      openShareCard({
+        overallScore, tierName,
+        cefrLevel: result.cefr_level || '?',
+        ieltsBand: result.ielts_band,
+        topic: currentTopic,
+        strength: topStrength,
+        radarPoints: catKeys.map(c => ({ label: c.short, value: (cats[c.key] && cats[c.key].score) || 0 }))
+      });
     });
   }
 
@@ -456,6 +459,262 @@ function escapeHtml(str){
   div.textContent = str;
   return div.innerHTML;
 }
+
+// ---------- Share card (story-sized image for social sharing) ----------
+function roundRect(ctx, x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight, maxLines){
+  const words = (text || '').split(/\s+/).filter(Boolean);
+  const lines = [];
+  let line = '';
+  for (const word of words) {
+    const testLine = line ? line + ' ' + word : word;
+    if (line && ctx.measureText(testLine).width > maxWidth) {
+      lines.push(line);
+      if (lines.length >= maxLines) break;
+      line = word;
+    } else {
+      line = testLine;
+    }
+  }
+  if (lines.length < maxLines && line) lines.push(line);
+  lines.slice(0, maxLines).forEach((l, i) => ctx.fillText(l, x, y + i * lineHeight));
+}
+
+function paintCardBackground(ctx, W, H){
+  ctx.fillStyle = '#05070F';
+  ctx.fillRect(0, 0, W, H);
+
+  const g1 = ctx.createRadialGradient(W * 0.15, H * 0.04, 0, W * 0.15, H * 0.04, W * 0.9);
+  g1.addColorStop(0, 'rgba(47,92,255,0.30)');
+  g1.addColorStop(1, 'rgba(47,92,255,0)');
+  ctx.fillStyle = g1;
+  ctx.fillRect(0, 0, W, H);
+
+  const g2 = ctx.createRadialGradient(W * 0.95, H * 0.1, 0, W * 0.95, H * 0.1, W * 0.7);
+  g2.addColorStop(0, 'rgba(255,59,78,0.2)');
+  g2.addColorStop(1, 'rgba(255,59,78,0)');
+  ctx.fillStyle = g2;
+  ctx.fillRect(0, 0, W, H);
+
+  const g3 = ctx.createRadialGradient(W * 0.5, H * 1.02, 0, W * 0.5, H * 1.02, W * 1.0);
+  g3.addColorStop(0, 'rgba(47,92,255,0.16)');
+  g3.addColorStop(1, 'rgba(47,92,255,0)');
+  ctx.fillStyle = g3;
+  ctx.fillRect(0, 0, W, H);
+}
+
+function drawRadarCanvas(ctx, cx, cy, maxR, points){
+  const n = points.length;
+  const angleStep = (2 * Math.PI) / n;
+  const startAngle = -Math.PI / 2;
+  const coordAt = (i, r) => {
+    const angle = startAngle + i * angleStep;
+    return [cx + r * Math.cos(angle), cy + r * Math.sin(angle)];
+  };
+
+  [0.25, 0.5, 0.75, 1].forEach(level => {
+    ctx.beginPath();
+    points.forEach((_, i) => {
+      const [x, y] = coordAt(i, maxR * level);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.closePath();
+    ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  });
+
+  points.forEach((_, i) => {
+    const [x, y] = coordAt(i, maxR);
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(x, y);
+    ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  });
+
+  ctx.beginPath();
+  points.forEach((p, i) => {
+    const [x, y] = coordAt(i, (p.value / 100) * maxR);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(47,92,255,0.32)';
+  ctx.fill();
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = '#5B7FFF';
+  ctx.lineWidth = 6;
+  ctx.stroke();
+
+  ctx.font = '600 28px "JetBrains Mono", monospace';
+  ctx.fillStyle = 'rgba(237,239,247,0.55)';
+  ctx.textBaseline = 'middle';
+  points.forEach((p, i) => {
+    const [x, y] = coordAt(i, maxR + 60);
+    ctx.textAlign = Math.abs(x - cx) < 4 ? 'center' : (x > cx ? 'left' : 'right');
+    ctx.fillText(p.label.toUpperCase(), x, y);
+  });
+}
+
+async function drawShareCard(canvas, data){
+  if (document.fonts && document.fonts.ready) {
+    try { await document.fonts.ready; } catch(e) {}
+  }
+
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const MARGIN = 90;
+
+  paintCardBackground(ctx, W, H);
+  ctx.textBaseline = 'alphabetic';
+
+  // Header: brand mark + title
+  const headerCenterY = 115;
+  const markSize = 96;
+  const markGrad = ctx.createLinearGradient(MARGIN, headerCenterY - markSize / 2, MARGIN + markSize, headerCenterY + markSize / 2);
+  markGrad.addColorStop(0, '#2F5CFF');
+  markGrad.addColorStop(1, '#FF3B4E');
+  roundRect(ctx, MARGIN, headerCenterY - markSize / 2, markSize, markSize, 20);
+  ctx.fillStyle = markGrad;
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '700 38px "Space Grotesk", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('SA', MARGIN + markSize / 2, headerCenterY + 2);
+
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#EDEFF7';
+  ctx.font = '700 42px "Space Grotesk", sans-serif';
+  ctx.fillText('Speaking Assessment', MARGIN + markSize + 26, headerCenterY - 4);
+  ctx.fillStyle = 'rgba(237,239,247,0.5)';
+  ctx.font = '500 24px "JetBrains Mono", monospace';
+  ctx.fillText('SMALL TALK PRACTICE', MARGIN + markSize + 26, headerCenterY + 34);
+
+  // Score section
+  ctx.fillStyle = '#5B7FFF';
+  ctx.font = '600 28px "JetBrains Mono", monospace';
+  ctx.fillText('SCORE', MARGIN, 226);
+
+  ctx.fillStyle = '#EDEFF7';
+  ctx.font = '700 200px "Space Grotesk", sans-serif';
+  const scoreText = String(data.overallScore);
+  ctx.fillText(scoreText, MARGIN, 420);
+  const scoreWidth = ctx.measureText(scoreText).width;
+  ctx.fillStyle = 'rgba(237,239,247,0.4)';
+  ctx.font = '500 58px "JetBrains Mono", monospace';
+  ctx.fillText('/100', MARGIN + scoreWidth + 18, 420);
+
+  ctx.fillStyle = '#EDEFF7';
+  ctx.font = '600 56px "Space Grotesk", sans-serif';
+  ctx.fillText(`${data.tierName} (${data.cefrLevel})`, MARGIN, 525);
+
+  ctx.fillStyle = 'rgba(237,239,247,0.5)';
+  ctx.font = '500 32px "JetBrains Mono", monospace';
+  ctx.fillText(`IELTS BAND ${data.ieltsBand ?? '—'}`, MARGIN, 581);
+
+  // Radar chart
+  const maxR = 280;
+  const radarCenterY = 984;
+  drawRadarCanvas(ctx, W / 2, radarCenterY, maxR, data.radarPoints);
+
+  // Topic block
+  let blockY = 1389;
+  const blockH = 190;
+  const blockW = W - MARGIN * 2;
+  roundRect(ctx, MARGIN, blockY, blockW, blockH, 22);
+  const topicGrad = ctx.createLinearGradient(MARGIN, blockY, W - MARGIN, blockY + blockH);
+  topicGrad.addColorStop(0, 'rgba(47,92,255,0.16)');
+  topicGrad.addColorStop(1, 'rgba(255,59,78,0.08)');
+  ctx.fillStyle = topicGrad;
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(91,127,255,0.3)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.fillStyle = '#5B7FFF';
+  ctx.font = '600 24px "JetBrains Mono", monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('TOPIC', MARGIN + 36, blockY + 54);
+
+  ctx.fillStyle = '#EDEFF7';
+  ctx.font = '600 36px "Space Grotesk", sans-serif';
+  drawWrappedText(ctx, data.topic, MARGIN + 36, blockY + 104, blockW - 72, 46, 2);
+
+  // Strength block
+  blockY = 1609;
+  roundRect(ctx, MARGIN, blockY, blockW, blockH, 22);
+  ctx.fillStyle = 'rgba(255,255,255,0.03)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(51,214,143,0.35)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.fillStyle = '#33D68F';
+  ctx.font = '600 24px "JetBrains Mono", monospace';
+  ctx.fillText('YOUR STRENGTH', MARGIN + 36, blockY + 54);
+
+  ctx.fillStyle = '#EDEFF7';
+  ctx.font = '500 32px Inter, sans-serif';
+  drawWrappedText(ctx, data.strength, MARGIN + 36, blockY + 104, blockW - 72, 42, 2);
+
+  // Footer
+  ctx.fillStyle = 'rgba(237,239,247,0.38)';
+  ctx.font = '500 24px "JetBrains Mono", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('speaking-assessment-one.vercel.app', W / 2, H - 50);
+}
+
+async function openShareCard(data){
+  shareOverlay.hidden = false;
+  await drawShareCard(shareCardCanvas, data);
+}
+
+function downloadShareCard(){
+  shareCardCanvas.toBlob((blob) => {
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'speaking-assessment-result.png';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }, 'image/png');
+}
+
+shareCloseBtn.addEventListener('click', () => { shareOverlay.hidden = true; });
+shareOverlay.addEventListener('click', (e) => {
+  if (e.target === shareOverlay) shareOverlay.hidden = true;
+});
+shareDownloadBtn.addEventListener('click', downloadShareCard);
+shareSendBtn.addEventListener('click', () => {
+  shareCardCanvas.toBlob(async (blob) => {
+    if (!blob) return;
+    const file = new File([blob], 'speaking-assessment-result.png', { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: 'My Speaking Assessment Result' });
+        return;
+      } catch(e) {
+        // user cancelled — fall through to download
+      }
+    }
+    downloadShareCard();
+  }, 'image/png');
+});
 
 // init
 pickTopic(false);
