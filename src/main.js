@@ -59,10 +59,14 @@ let recording = false;
 let inCountdown = false;
 
 const setupCard = document.getElementById('setupCard');
+const setupFull = document.getElementById('setupFull');
+const setupSummary = document.getElementById('setupSummary');
+const summaryEmoji = document.getElementById('summaryEmoji');
+const summaryText = document.getElementById('summaryText');
+const changeTypeBtn = document.getElementById('changeTypeBtn');
 const practiceCard = document.getElementById('practiceCard');
 const typeList = document.getElementById('typeList');
 const startPracticeBtn = document.getElementById('startPracticeBtn');
-const backToSetupBtn = document.getElementById('backToSetupBtn');
 const questionText = document.getElementById('questionText');
 const newTopicBtn = document.getElementById('newTopicBtn');
 const retryTopicBtn = document.getElementById('retryTopicBtn');
@@ -125,15 +129,24 @@ durationSelect.addEventListener('click', (e) => {
 startPracticeBtn.addEventListener('click', () => {
   currentSpeakingType = speakingTypes.find(t => t.id === selectedTypeId) || speakingTypes[0];
   pickTopic(false);
-  setupCard.hidden = true;
+
+  summaryEmoji.textContent = currentSpeakingType.emoji;
+  summaryText.innerHTML = `${escapeHtml(currentSpeakingType.title)}<span class="dur">${selectedDuration}s response</span>`;
+  setupFull.hidden = true;
+  setupSummary.hidden = false;
+
   practiceCard.hidden = false;
+  practiceCard.classList.remove('card-enter');
+  void practiceCard.offsetWidth; // restart the animation on repeat use
+  practiceCard.classList.add('card-enter');
   practiceCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 
-backToSetupBtn.addEventListener('click', () => {
+changeTypeBtn.addEventListener('click', () => {
   if (recording || inCountdown) return;
+  setupSummary.hidden = true;
+  setupFull.hidden = false;
   practiceCard.hidden = true;
-  setupCard.hidden = false;
   setupCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 
@@ -191,7 +204,7 @@ function beginCountdown(){
   recordBtn.disabled = true;
   newTopicBtn.disabled = true;
   retryTopicBtn.disabled = true;
-  backToSetupBtn.disabled = true;
+  changeTypeBtn.disabled = true;
   stageEl.classList.add('is-countdown');
   let count = 3;
   timerDisplay.textContent = count;
@@ -240,7 +253,7 @@ async function startRecording(){
     recordBtn.disabled = false;
     newTopicBtn.disabled = false;
     retryTopicBtn.disabled = false;
-    backToSetupBtn.disabled = false;
+    changeTypeBtn.disabled = false;
     return;
   }
 
@@ -279,7 +292,7 @@ function finishRecording(){
   stopBtn.disabled = true;
   newTopicBtn.disabled = false;
   retryTopicBtn.disabled = false;
-  backToSetupBtn.disabled = false;
+  changeTypeBtn.disabled = false;
   timerLabel.textContent = "seconds — done";
 
   setStatus('wait', 'Transcribing your recording...');

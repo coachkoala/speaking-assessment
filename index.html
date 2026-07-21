@@ -24,17 +24,26 @@
   <div class="card" id="setupCard">
     <div class="eyebrow">Practice Setup</div>
 
-    <div class="section-title">Speaking Type</div>
-    <div class="type-list" id="typeList"></div>
+    <div id="setupFull">
+      <div class="section-title">Speaking Type</div>
+      <div class="type-list" id="typeList"></div>
 
-    <div class="section-title">Response Time</div>
-    <div class="duration-select" id="durationSelect"></div>
+      <div class="section-title">Response Time</div>
+      <div class="duration-select" id="durationSelect"></div>
 
-    <button class="btn primary full" id="startPracticeBtn">Start Practice</button>
+      <button class="btn primary full" id="startPracticeBtn">Start Practice</button>
+    </div>
+
+    <div class="setup-summary" id="setupSummary" hidden>
+      <div class="setup-summary-info">
+        <span class="setup-summary-emoji" id="summaryEmoji"></span>
+        <span class="setup-summary-text" id="summaryText"></span>
+      </div>
+      <button class="link-back" id="changeTypeBtn">Change</button>
+    </div>
   </div>
 
-  <div class="card" id="practiceCard" hidden>
-    <button class="link-back" id="backToSetupBtn">← Change Type</button>
+  <div class="card practice-card" id="practiceCard" hidden>
     <div class="eyebrow">Session Prompt</div>
 
     <div class="prompt-block">

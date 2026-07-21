@@ -131,6 +131,21 @@ body{
 .link-back:hover{ color: var(--blue-bright); }
 .link-back:disabled{ opacity:0.3; cursor:not-allowed; }
 
+.setup-summary{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  animation: fadeUp 0.35s ease both;
+}
+.setup-summary-info{ display:flex; align-items:center; gap:10px; min-width:0; }
+.setup-summary-emoji{ font-size:22px; line-height:1; flex-shrink:0; }
+.setup-summary-text{ font-family:'Space Grotesk', sans-serif; font-weight:600; font-size:15px; color: var(--text); }
+.setup-summary-text .dur{
+  font-family:'JetBrains Mono', monospace; font-weight:500; font-size:11px; color: var(--text-faint);
+  margin-left:8px; text-transform:uppercase; letter-spacing:0.04em;
+}
+.setup-summary .link-back{ margin-bottom:0; flex-shrink:0; }
+
+.practice-card.card-enter{ animation: fadeUp 0.4s cubic-bezier(0.16,1,0.3,1) both; }
+
 .type-list{ display:flex; flex-direction:column; gap:10px; margin-bottom: clamp(18px,4vw,22px); }
 .type-card{
   display:flex; align-items:center; gap:14px; width:100%; text-align:left;
