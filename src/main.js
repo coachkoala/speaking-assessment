@@ -443,9 +443,13 @@ function renderReport(result, transcript){
         overallScore, tierName,
         cefrLevel: result.cefr_level || '?',
         ieltsBand: result.ielts_band,
-        topic: currentTopic,
-        strength: topStrength,
-        radarPoints: catKeys.map(c => ({ label: c.short, value: (cats[c.key] && cats[c.key].score) || 0 }))
+        summary: result.summary || '',
+        radarPoints: catKeys.map(c => ({ label: c.short, value: (cats[c.key] && cats[c.key].score) || 0 })),
+        pillars: catKeys.map(c => ({
+          label: c.label,
+          score: (cats[c.key] && cats[c.key].score) || 0,
+          note: (cats[c.key] && cats[c.key].note) || ''
+        }))
       });
     });
   }
@@ -469,6 +473,18 @@ function roundRect(ctx, x, y, w, h, r){
   ctx.arcTo(x, y + h, x, y, r);
   ctx.arcTo(x, y, x + w, y, r);
   ctx.closePath();
+}
+
+function truncateText(ctx, text, maxWidth){
+  text = text || '';
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  let lo = 0, hi = text.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (ctx.measureText(text.slice(0, mid) + '…').width <= maxWidth) lo = mid;
+    else hi = mid - 1;
+  }
+  return text.slice(0, lo) + '…';
 }
 
 function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight, maxLines){
@@ -573,14 +589,15 @@ async function drawShareCard(canvas, data){
 
   const ctx = canvas.getContext('2d');
   const W = canvas.width, H = canvas.height;
-  const MARGIN = 90;
+  const MARGIN = 80;
+  const contentW = W - MARGIN * 2;
 
   paintCardBackground(ctx, W, H);
   ctx.textBaseline = 'alphabetic';
 
   // Header: brand mark + title
-  const headerCenterY = 115;
-  const markSize = 96;
+  const headerCenterY = 104;
+  const markSize = 88;
   const markGrad = ctx.createLinearGradient(MARGIN, headerCenterY - markSize / 2, MARGIN + markSize, headerCenterY + markSize / 2);
   markGrad.addColorStop(0, '#2F5CFF');
   markGrad.addColorStop(1, '#FF3B4E');
@@ -588,7 +605,7 @@ async function drawShareCard(canvas, data){
   ctx.fillStyle = markGrad;
   ctx.fill();
   ctx.fillStyle = '#ffffff';
-  ctx.font = '700 38px "Space Grotesk", sans-serif';
+  ctx.font = '700 34px "Space Grotesk", sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText('SA', MARGIN + markSize / 2, headerCenterY + 2);
@@ -596,82 +613,88 @@ async function drawShareCard(canvas, data){
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#EDEFF7';
-  ctx.font = '700 42px "Space Grotesk", sans-serif';
-  ctx.fillText('Speaking Assessment', MARGIN + markSize + 26, headerCenterY - 4);
+  ctx.font = '700 38px "Space Grotesk", sans-serif';
+  ctx.fillText('Speaking Assessment', MARGIN + markSize + 24, headerCenterY - 6);
   ctx.fillStyle = 'rgba(237,239,247,0.5)';
-  ctx.font = '500 24px "JetBrains Mono", monospace';
-  ctx.fillText('SMALL TALK PRACTICE', MARGIN + markSize + 26, headerCenterY + 34);
+  ctx.font = '500 22px "JetBrains Mono", monospace';
+  ctx.fillText('SMALL TALK PRACTICE', MARGIN + markSize + 24, headerCenterY + 28);
 
   // Score section
   ctx.fillStyle = '#5B7FFF';
-  ctx.font = '600 28px "JetBrains Mono", monospace';
-  ctx.fillText('SCORE', MARGIN, 226);
+  ctx.font = '600 24px "JetBrains Mono", monospace';
+  ctx.fillText('SCORE', MARGIN, 228);
 
   ctx.fillStyle = '#EDEFF7';
-  ctx.font = '700 200px "Space Grotesk", sans-serif';
+  ctx.font = '700 160px "Space Grotesk", sans-serif';
   const scoreText = String(data.overallScore);
-  ctx.fillText(scoreText, MARGIN, 420);
+  ctx.fillText(scoreText, MARGIN, 382);
   const scoreWidth = ctx.measureText(scoreText).width;
   ctx.fillStyle = 'rgba(237,239,247,0.4)';
-  ctx.font = '500 58px "JetBrains Mono", monospace';
-  ctx.fillText('/100', MARGIN + scoreWidth + 18, 420);
+  ctx.font = '500 48px "JetBrains Mono", monospace';
+  ctx.fillText('/100', MARGIN + scoreWidth + 16, 382);
 
   ctx.fillStyle = '#EDEFF7';
-  ctx.font = '600 56px "Space Grotesk", sans-serif';
-  ctx.fillText(`${data.tierName} (${data.cefrLevel})`, MARGIN, 525);
+  ctx.font = '600 44px "Space Grotesk", sans-serif';
+  ctx.fillText(`${data.tierName} (${data.cefrLevel})`, MARGIN, 448);
 
   ctx.fillStyle = 'rgba(237,239,247,0.5)';
-  ctx.font = '500 32px "JetBrains Mono", monospace';
-  ctx.fillText(`IELTS BAND ${data.ieltsBand ?? '—'}`, MARGIN, 581);
+  ctx.font = '500 27px "JetBrains Mono", monospace';
+  ctx.fillText(`IELTS BAND ${data.ieltsBand ?? '—'}`, MARGIN, 490);
 
   // Radar chart
-  const maxR = 280;
-  const radarCenterY = 984;
+  const maxR = 210;
+  const radarCenterY = 780;
   drawRadarCanvas(ctx, W / 2, radarCenterY, maxR, data.radarPoints);
 
-  // Topic block
-  let blockY = 1389;
-  const blockH = 190;
-  const blockW = W - MARGIN * 2;
-  roundRect(ctx, MARGIN, blockY, blockW, blockH, 22);
-  const topicGrad = ctx.createLinearGradient(MARGIN, blockY, W - MARGIN, blockY + blockH);
-  topicGrad.addColorStop(0, 'rgba(47,92,255,0.16)');
-  topicGrad.addColorStop(1, 'rgba(255,59,78,0.08)');
-  ctx.fillStyle = topicGrad;
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(91,127,255,0.3)';
-  ctx.lineWidth = 2;
-  ctx.stroke();
+  // Pillar breakdown (4 rows: full label, score, note)
+  let y = 1150;
+  const rowH = 95;
+  data.pillars.forEach(p => {
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#EDEFF7';
+    ctx.font = '600 27px "Space Grotesk", sans-serif';
+    ctx.fillText(p.label, MARGIN, y);
 
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '700 27px "Space Grotesk", sans-serif';
+    ctx.fillText(`${p.score}/100`, W - MARGIN, y);
+
+    const barY = y + 14;
+    const barW = contentW;
+    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    roundRect(ctx, MARGIN, barY, barW, 8, 4);
+    ctx.fill();
+    const fillGrad = ctx.createLinearGradient(MARGIN, 0, MARGIN + barW, 0);
+    fillGrad.addColorStop(0, '#2F5CFF');
+    fillGrad.addColorStop(1, '#FF6270');
+    ctx.fillStyle = fillGrad;
+    roundRect(ctx, MARGIN, barY, barW * Math.max(0, Math.min(100, p.score)) / 100, 8, 4);
+    ctx.fill();
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(237,239,247,0.55)';
+    ctx.font = '500 22px Inter, sans-serif';
+    ctx.fillText(truncateText(ctx, p.note, contentW), MARGIN, y + 54);
+
+    y += rowH;
+  });
+
+  // Overall Feedback
+  y += 20;
+  ctx.textAlign = 'left';
   ctx.fillStyle = '#5B7FFF';
   ctx.font = '600 24px "JetBrains Mono", monospace';
-  ctx.textAlign = 'left';
-  ctx.fillText('TOPIC', MARGIN + 36, blockY + 54);
+  ctx.fillText('OVERALL FEEDBACK', MARGIN, y);
 
+  y += 42;
   ctx.fillStyle = '#EDEFF7';
-  ctx.font = '600 36px "Space Grotesk", sans-serif';
-  drawWrappedText(ctx, data.topic, MARGIN + 36, blockY + 104, blockW - 72, 46, 2);
-
-  // Strength block
-  blockY = 1609;
-  roundRect(ctx, MARGIN, blockY, blockW, blockH, 22);
-  ctx.fillStyle = 'rgba(255,255,255,0.03)';
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(51,214,143,0.35)';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-
-  ctx.fillStyle = '#33D68F';
-  ctx.font = '600 24px "JetBrains Mono", monospace';
-  ctx.fillText('YOUR STRENGTH', MARGIN + 36, blockY + 54);
-
-  ctx.fillStyle = '#EDEFF7';
-  ctx.font = '500 32px Inter, sans-serif';
-  drawWrappedText(ctx, data.strength, MARGIN + 36, blockY + 104, blockW - 72, 42, 2);
+  ctx.font = '500 26px Inter, sans-serif';
+  drawWrappedText(ctx, data.summary, MARGIN, y, contentW, 36, 3);
 
   // Footer
   ctx.fillStyle = 'rgba(237,239,247,0.38)';
-  ctx.font = '500 24px "JetBrains Mono", monospace';
+  ctx.font = '500 22px "JetBrains Mono", monospace';
   ctx.textAlign = 'center';
   ctx.fillText('speaking-assessment-one.vercel.app', W / 2, H - 50);
 }
