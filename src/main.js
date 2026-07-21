@@ -38,6 +38,7 @@ let timeLeft = 60;
 let recording = false;
 let inCountdown = false;
 let lastRecognitionError = null;
+let recognitionEventLog = [];
 
 const questionText = document.getElementById('questionText');
 const newTopicBtn = document.getElementById('newTopicBtn');
@@ -123,7 +124,17 @@ function startRecognition(){
   recognition.interimResults = true;
   recognition.lang = 'en-US';
 
+  recognition.onstart = () => recognitionEventLog.push('start');
+  recognition.onaudiostart = () => recognitionEventLog.push('audiostart');
+  recognition.onsoundstart = () => recognitionEventLog.push('soundstart');
+  recognition.onspeechstart = () => recognitionEventLog.push('speechstart');
+  recognition.onspeechend = () => recognitionEventLog.push('speechend');
+  recognition.onsoundend = () => recognitionEventLog.push('soundend');
+  recognition.onaudioend = () => recognitionEventLog.push('audioend');
+  recognition.onnomatch = () => recognitionEventLog.push('nomatch');
+
   recognition.onresult = (event) => {
+    recognitionEventLog.push('result');
     interimTranscript = "";
     for (let i = event.resultIndex; i < event.results.length; i++) {
       const transcript = event.results[i][0].transcript;
@@ -139,11 +150,13 @@ function startRecognition(){
 
   recognition.onerror = (event) => {
     lastRecognitionError = event.error;
+    recognitionEventLog.push('error:' + event.error);
     if (event.error === 'no-speech') return;
     console.warn('Speech recognition error:', event.error);
   };
 
   recognition.onend = () => {
+    recognitionEventLog.push('end');
     if (recording) {
       try { recognition.start(); } catch(e){}
     }
@@ -193,6 +206,7 @@ async function startRecording(){
   interimTranscript = "";
   audioChunks = [];
   lastRecognitionError = null;
+  recognitionEventLog = [];
   transcriptBox.classList.remove('empty');
   transcriptBox.textContent = "Listening...";
 
@@ -265,8 +279,8 @@ function finishRecording(){
   if (finalText.length < 5) {
     setStatus('idle', 'No speech detected — try again');
     transcriptBox.classList.add('empty');
-    const reason = lastRecognitionError ? ` (reason: ${lastRecognitionError})` : '';
-    transcriptBox.textContent = `No speech was captured. Please try recording again.${reason}`;
+    const events = recognitionEventLog.length ? ` (events: ${recognitionEventLog.join(', ')})` : ' (events: none — recognition never fired)';
+    transcriptBox.textContent = `No speech was captured. Please try recording again.${events}`;
     analyzeBtn.disabled = true;
   } else {
     setStatus('done', 'Recording complete — ready to analyze');
