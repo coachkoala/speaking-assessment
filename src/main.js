@@ -1,30 +1,51 @@
 import './style.css';
 
-// ---------- Topic pool (small talk level) ----------
-const TOPICS = [
-  "What did you have for breakfast today?",
-  "Tell me about your favorite season and why you like it.",
-  "What do you usually do on weekends?",
-  "Describe your favorite place to hang out with friends.",
-  "What's your favorite type of music?",
-  "Tell me about a movie or show you watched recently.",
-  "What does your daily morning routine look like?",
-  "Do you prefer coffee or tea? Tell me about it.",
-  "What's the weather like where you live today?",
-  "Tell me about your favorite food to cook or order.",
-  "What do you like to do when you have free time?",
-  "Describe your neighborhood or the area where you live.",
-  "What's a small thing that made you happy this week?",
-  "Tell me about a pet you have or would like to have.",
-  "What's your favorite way to relax after a long day?",
-  "Do you like traveling? Tell me about a place you'd like to visit.",
-  "What's your favorite holiday or celebration?",
-  "Tell me about a hobby you've been enjoying lately.",
-  "What kind of books or articles do you like to read?",
-  "Describe your ideal weekend from morning to night."
+// ---------- Speaking types & topic pools ----------
+const speakingTypes = [
+  {
+    id: "personal",
+    emoji: "💬",
+    title: "Personal",
+    description: "Talk about yourself and your daily life.",
+    topics: [
+      "Tell me about your family.",
+      "What do you do for work or study?",
+      "Describe your hometown.",
+      "What hobbies do you enjoy in your free time?",
+      "What does a typical day look like for you?"
+    ]
+  },
+  {
+    id: "story",
+    emoji: "📖",
+    title: "Story",
+    description: "Describe a person, place, object, or experience.",
+    topics: [
+      "Describe a memorable trip you've taken.",
+      "Tell me about your favorite teacher.",
+      "Describe a useful object you own.",
+      "Tell me about an unforgettable event in your life."
+    ]
+  },
+  {
+    id: "opinion",
+    emoji: "💡",
+    title: "Opinion",
+    description: "Share your ideas and explain your reasons.",
+    topics: [
+      "Should AI be used in schools? Why or why not?",
+      "Do you think public transportation is important? Why?",
+      "Why do you think people enjoy traveling?",
+      "How has technology changed the way people communicate?"
+    ]
+  }
 ];
 
+const responseTimes = [30, 60, 120];
+
 let currentTopic = "";
+let selectedTypeId = speakingTypes[0].id;
+let currentSpeakingType = speakingTypes[0];
 let selectedDuration = 60;
 let mediaRecorder = null;
 let audioChunks = [];
@@ -37,6 +58,11 @@ let timeLeft = 60;
 let recording = false;
 let inCountdown = false;
 
+const setupCard = document.getElementById('setupCard');
+const practiceCard = document.getElementById('practiceCard');
+const typeList = document.getElementById('typeList');
+const startPracticeBtn = document.getElementById('startPracticeBtn');
+const backToSetupBtn = document.getElementById('backToSetupBtn');
 const questionText = document.getElementById('questionText');
 const newTopicBtn = document.getElementById('newTopicBtn');
 const retryTopicBtn = document.getElementById('retryTopicBtn');
@@ -63,12 +89,61 @@ const shareSendBtn = document.getElementById('shareSendBtn');
 
 document.getElementById('sessionNum').textContent = 'REF-' + Math.random().toString(36).slice(2,8).toUpperCase();
 
+// ---------- Setup: speaking type + response time ----------
+function renderTypeList(){
+  typeList.innerHTML = speakingTypes.map(t => `
+    <button type="button" class="type-card${t.id === selectedTypeId ? ' active' : ''}" data-type="${t.id}">
+      <span class="type-emoji">${t.emoji}</span>
+      <span class="type-info">
+        <span class="type-title">${escapeHtml(t.title)}</span>
+        <span class="type-desc">${escapeHtml(t.description)}</span>
+      </span>
+    </button>
+  `).join('');
+}
+
+function renderDurationOptions(){
+  durationSelect.innerHTML = responseTimes.map(d => `
+    <button type="button" class="dur-opt${d === selectedDuration ? ' active' : ''}" data-dur="${d}">${d}s</button>
+  `).join('');
+}
+
+typeList.addEventListener('click', (e) => {
+  const card = e.target.closest('.type-card');
+  if (!card) return;
+  selectedTypeId = card.dataset.type;
+  renderTypeList();
+});
+
+durationSelect.addEventListener('click', (e) => {
+  const btn = e.target.closest('.dur-opt');
+  if (!btn) return;
+  selectedDuration = parseInt(btn.dataset.dur, 10);
+  renderDurationOptions();
+});
+
+startPracticeBtn.addEventListener('click', () => {
+  currentSpeakingType = speakingTypes.find(t => t.id === selectedTypeId) || speakingTypes[0];
+  pickTopic(false);
+  setupCard.hidden = true;
+  practiceCard.hidden = false;
+  practiceCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+backToSetupBtn.addEventListener('click', () => {
+  if (recording || inCountdown) return;
+  practiceCard.hidden = true;
+  setupCard.hidden = false;
+  setupCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
 // ---------- Topic selection ----------
 function pickTopic(isRetry){
   if (!isRetry) {
-    let t = TOPICS[Math.floor(Math.random() * TOPICS.length)];
-    if (t === currentTopic && TOPICS.length > 1) {
-      while (t === currentTopic) t = TOPICS[Math.floor(Math.random() * TOPICS.length)];
+    const pool = currentSpeakingType.topics;
+    let t = pool[Math.floor(Math.random() * pool.length)];
+    if (t === currentTopic && pool.length > 1) {
+      while (t === currentTopic) t = pool[Math.floor(Math.random() * pool.length)];
     }
     currentTopic = t;
   }
@@ -77,21 +152,10 @@ function pickTopic(isRetry){
     questionText.textContent = currentTopic;
     questionText.classList.remove('swap');
   }, 150);
-  retryTopicBtn.disabled = false;
   resetSession();
 }
 newTopicBtn.addEventListener('click', () => pickTopic(false));
 retryTopicBtn.addEventListener('click', () => pickTopic(true));
-
-durationSelect.addEventListener('click', (e) => {
-  const btn = e.target.closest('.dur-opt');
-  if(!btn || recording || inCountdown) return;
-  document.querySelectorAll('.dur-opt').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  selectedDuration = parseInt(btn.dataset.dur, 10);
-  timeLeft = selectedDuration;
-  timerDisplay.textContent = timeLeft;
-});
 
 function resetSession(){
   finalTranscript = "";
@@ -127,6 +191,7 @@ function beginCountdown(){
   recordBtn.disabled = true;
   newTopicBtn.disabled = true;
   retryTopicBtn.disabled = true;
+  backToSetupBtn.disabled = true;
   stageEl.classList.add('is-countdown');
   let count = 3;
   timerDisplay.textContent = count;
@@ -175,6 +240,7 @@ async function startRecording(){
     recordBtn.disabled = false;
     newTopicBtn.disabled = false;
     retryTopicBtn.disabled = false;
+    backToSetupBtn.disabled = false;
     return;
   }
 
@@ -213,6 +279,7 @@ function finishRecording(){
   stopBtn.disabled = true;
   newTopicBtn.disabled = false;
   retryTopicBtn.disabled = false;
+  backToSetupBtn.disabled = false;
   timerLabel.textContent = "seconds — done";
 
   setStatus('wait', 'Transcribing your recording...');
@@ -740,4 +807,5 @@ shareSendBtn.addEventListener('click', () => {
 });
 
 // init
-pickTopic(false);
+renderTypeList();
+renderDurationOptions();

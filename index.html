@@ -21,23 +21,30 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card" id="setupCard">
+    <div class="eyebrow">Practice Setup</div>
+
+    <div class="section-title">Speaking Type</div>
+    <div class="type-list" id="typeList"></div>
+
+    <div class="section-title">Response Time</div>
+    <div class="duration-select" id="durationSelect"></div>
+
+    <button class="btn primary full" id="startPracticeBtn">Start Practice</button>
+  </div>
+
+  <div class="card" id="practiceCard" hidden>
+    <button class="link-back" id="backToSetupBtn">← Change Type</button>
     <div class="eyebrow">Session Prompt</div>
 
     <div class="prompt-block">
       <div class="label">Topic</div>
-      <div class="question" id="questionText">Click "New Topic" to begin.</div>
+      <div class="question" id="questionText"></div>
     </div>
 
     <div class="btn-row">
       <button class="btn secondary" id="newTopicBtn">New Topic</button>
-      <button class="btn secondary" id="retryTopicBtn" disabled>Retry This Topic</button>
-    </div>
-
-    <div class="duration-select" id="durationSelect">
-      <button class="dur-opt active" data-dur="60">60s</button>
-      <button class="dur-opt" data-dur="90">90s</button>
-      <button class="dur-opt" data-dur="120">120s</button>
+      <button class="btn secondary" id="retryTopicBtn">Retry This Topic</button>
     </div>
 
     <div class="stage" id="stage">
@@ -55,7 +62,7 @@
 
     <div class="status-line" id="statusLine">
       <span class="dot" id="statusDot"></span>
-      <span id="statusText">Idle — pick a topic and duration to start</span>
+      <span id="statusText">Idle — press Start Recording when ready</span>
     </div>
 
     <div class="transcript-box empty" id="transcriptBox">
