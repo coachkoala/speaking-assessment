@@ -294,25 +294,73 @@ analyzeBtn.addEventListener('click', async () => {
   }
 });
 
+const CEFR_TIERS = {
+  A1: 'Beginner', A2: 'Elementary', B1: 'Intermediate',
+  B2: 'Upper Intermediate', C1: 'Advanced', C2: 'Mastery'
+};
+
+function buildRadarChart(points){
+  const size = 240;
+  const center = size / 2;
+  const maxR = 90;
+  const n = points.length;
+  const angleStep = (2 * Math.PI) / n;
+  const startAngle = -Math.PI / 2;
+
+  const coordAt = (i, r) => {
+    const angle = startAngle + i * angleStep;
+    return [center + r * Math.cos(angle), center + r * Math.sin(angle)];
+  };
+
+  const gridPolys = [0.25, 0.5, 0.75, 1].map(level => {
+    const pts = points.map((_, i) => coordAt(i, maxR * level).join(',')).join(' ');
+    return `<polygon class="radar-grid" points="${pts}" />`;
+  }).join('');
+
+  const axisLines = points.map((_, i) => {
+    const [x, y] = coordAt(i, maxR);
+    return `<line class="radar-axis" x1="${center}" y1="${center}" x2="${x}" y2="${y}" />`;
+  }).join('');
+
+  const shapePts = points.map((p, i) => coordAt(i, (p.value / 100) * maxR).join(',')).join(' ');
+  const shape = `<polygon class="radar-shape" points="${shapePts}" />`;
+
+  const labels = points.map((p, i) => {
+    const [x, y] = coordAt(i, maxR + 16);
+    const anchor = Math.abs(x - center) < 4 ? 'middle' : (x > center ? 'start' : 'end');
+    return `<text class="radar-label" x="${x}" y="${y}" text-anchor="${anchor}" dominant-baseline="middle">${escapeHtml(p.label)}</text>`;
+  }).join('');
+
+  return `<svg class="radar-chart" viewBox="0 0 ${size} ${size}">${gridPolys}${axisLines}${shape}${labels}</svg>`;
+}
+
 function renderReport(result, transcript){
   const cats = result.categories || {};
   const catKeys = [
-    { key: 'grammar_accuracy', label: 'Grammar Accuracy' },
-    { key: 'vocabulary_range', label: 'Vocabulary Range' },
-    { key: 'fluency_coherence', label: 'Fluency & Coherence' },
-    { key: 'task_response', label: 'Task Response' }
+    { key: 'grammar_accuracy', label: 'Grammar Accuracy', short: 'Grammar' },
+    { key: 'vocabulary_range', label: 'Vocabulary Range', short: 'Vocabulary' },
+    { key: 'fluency_coherence', label: 'Fluency & Coherence', short: 'Fluency' },
+    { key: 'task_response', label: 'Task Response', short: 'Task' }
   ];
 
-  const catHtml = catKeys.map(c => {
+  const scores = catKeys.map(c => (cats[c.key] && cats[c.key].score) || 0);
+  const overallScore = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+  const tierName = CEFR_TIERS[result.cefr_level] || '';
+  const radarSvg = buildRadarChart(catKeys.map(c => ({ label: c.short, value: (cats[c.key] && cats[c.key].score) || 0 })));
+
+  const pillarHtml = catKeys.map(c => {
     const d = cats[c.key] || { score: 0, note: '—' };
     return `
-      <div class="cat">
-        <div class="cat-name"><span>${c.label}</span><span class="cat-score">${d.score}/100</span></div>
-        <div class="cat-bar"><div class="cat-bar-fill" data-w="${d.score}" style="width:0%"></div></div>
-        <div class="cat-note">${escapeHtml(d.note)}</div>
+      <div class="pillar-row">
+        <div class="pillar-label"><span>${c.label}</span><span class="pillar-score">${d.score}/100</span></div>
+        <div class="pillar-track"><div class="pillar-fill" data-w="${d.score}" style="width:0%"></div></div>
+        <div class="pillar-note">${escapeHtml(d.note)}</div>
       </div>
     `;
   }).join('');
+
+  const topStrength = (result.strengths && result.strengths[0]) || 'Keep practicing to build your strengths.';
+  const topFocus = (result.areas_to_improve && result.areas_to_improve[0]) || 'Keep practicing consistently.';
 
   const strengths = (result.strengths || []).map(s => `<li><span class="idx">+</span>${escapeHtml(s)}</li>`).join('');
   const improve = (result.areas_to_improve || []).map((s,i) => `<li><span class="idx">${i+1}.</span>${escapeHtml(s)}</li>`).join('');
@@ -335,19 +383,31 @@ function renderReport(result, transcript){
 
   reportArea.innerHTML = `
     <div class="report">
-      <div class="report-head">
-        <div>
-          <span class="cefr-badge">${escapeHtml(result.cefr_level || '?')}</span>
-          <div class="cefr-sub">Estimated CEFR Level</div>
+      <div class="score-hero">
+        <div class="score-hero-main">
+          <div class="score-big"><span class="num">${overallScore}</span><span class="denom">/100</span></div>
+          <div class="score-tier">${escapeHtml(tierName)} <span class="tier-code">(${escapeHtml(result.cefr_level || '?')})</span></div>
+          <div class="score-sub">IELTS Band ${result.ielts_band ?? '—'}</div>
         </div>
-        <div class="ielts-band">
-          <div class="val">${result.ielts_band ?? '—'}</div>
-          <div class="lbl">Estimated IELTS Band</div>
+        <div class="radar-wrap">${radarSvg}</div>
+      </div>
+
+      <div class="pillar-list">${pillarHtml}</div>
+
+      <div class="highlight-grid">
+        <div class="highlight-card strength">
+          <div class="highlight-label">Your Strength</div>
+          <div class="highlight-text">${escapeHtml(topStrength)}</div>
+        </div>
+        <div class="highlight-card focus">
+          <div class="highlight-label">Next Focus</div>
+          <div class="highlight-text">${escapeHtml(topFocus)}</div>
         </div>
       </div>
 
-      <div class="section-title">Category Breakdown</div>
-      <div class="cat-grid">${catHtml}</div>
+      <div class="btn-row">
+        <button class="btn secondary full" id="shareResultBtn">Share Result</button>
+      </div>
 
       ${strengths ? `<div class="section-title">Strengths</div><ul class="feedback-list">${strengths}</ul>` : ''}
       ${improve ? `<div class="section-title">Areas to Improve</div><ul class="feedback-list">${improve}</ul>` : ''}
@@ -355,7 +415,7 @@ function renderReport(result, transcript){
       ${upgrades ? `<div class="section-title">Better Ways to Say It</div>${upgrades}` : ''}
 
       <div class="section-title">Overall Feedback</div>
-      <div class="cat-note" style="font-size:14px; line-height:1.7;">${escapeHtml(result.summary || '')}</div>
+      <div class="report-text">${escapeHtml(result.summary || '')}</div>
 
       <div class="section-title">Full Transcript</div>
       <div class="full-transcript">${escapeHtml(transcript)}</div>
@@ -364,11 +424,28 @@ function renderReport(result, transcript){
 
   requestAnimationFrame(() => {
     setTimeout(() => {
-      document.querySelectorAll('.cat-bar-fill').forEach(bar => {
+      document.querySelectorAll('.pillar-fill').forEach(bar => {
         bar.style.width = bar.dataset.w + '%';
       });
     }, 50);
   });
+
+  const shareBtn = document.getElementById('shareResultBtn');
+  if (shareBtn) {
+    shareBtn.addEventListener('click', async () => {
+      const shareText = `My English Speaking Assessment: ${overallScore}/100 (${tierName || result.cefr_level} · IELTS ${result.ielts_band ?? '—'})\nTopic: "${currentTopic}"\n${result.summary || ''}`;
+      if (navigator.share) {
+        try { await navigator.share({ title: 'Speaking Assessment Result', text: shareText }); } catch(e) {}
+      } else if (navigator.clipboard) {
+        try {
+          await navigator.clipboard.writeText(shareText);
+          const original = shareBtn.textContent;
+          shareBtn.textContent = 'Copied!';
+          setTimeout(() => { shareBtn.textContent = original; }, 1500);
+        } catch(e) {}
+      }
+    });
+  }
 
   reportArea.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
