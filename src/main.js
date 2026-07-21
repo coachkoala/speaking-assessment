@@ -26,9 +26,6 @@ const TOPICS = [
 
 let currentTopic = "";
 let selectedDuration = 60;
-let mediaRecorder = null;
-let audioChunks = [];
-let audioBlobUrl = null;
 let recognition = null;
 let finalTranscript = "";
 let interimTranscript = "";
@@ -53,7 +50,6 @@ const stopBtn = document.getElementById('stopBtn');
 const statusDot = document.getElementById('statusDot');
 const statusText = document.getElementById('statusText');
 const transcriptBox = document.getElementById('transcriptBox');
-const audioArea = document.getElementById('audioArea');
 const analyzeBtn = document.getElementById('analyzeBtn');
 const errorArea = document.getElementById('errorArea');
 const loadingArea = document.getElementById('loadingArea');
@@ -99,8 +95,6 @@ function resetSession(){
   analyzeBtn.disabled = true;
   reportArea.innerHTML = "";
   errorArea.innerHTML = "";
-  audioArea.innerHTML = "";
-  if (audioBlobUrl) { URL.revokeObjectURL(audioBlobUrl); audioBlobUrl = null; }
   timeLeft = selectedDuration;
   timerDisplay.textContent = timeLeft;
   timerLabel.textContent = "seconds ready";
@@ -151,6 +145,10 @@ function startRecognition(){
   recognition.onerror = (event) => {
     lastRecognitionError = event.error;
     recognitionEventLog.push('error:' + event.error);
+    if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+      abortRecordingWithError('Microphone access was denied or unavailable. Please allow microphone access and try again.');
+      return;
+    }
     if (event.error === 'no-speech') return;
     console.warn('Speech recognition error:', event.error);
   };
@@ -200,44 +198,28 @@ function beginCountdown(){
   }, 800);
 }
 
-async function startRecording(){
+function abortRecordingWithError(message){
+  recording = false;
+  clearInterval(timerInterval);
+  wave.classList.add('idle');
+  stageEl.classList.remove('is-recording');
+  recordBtn.disabled = false;
+  stopBtn.disabled = true;
+  newTopicBtn.disabled = false;
+  retryTopicBtn.disabled = false;
+  errorArea.innerHTML = `<div class="error-box">${message}</div>`;
+}
+
+function startRecording(){
   errorArea.innerHTML = "";
   finalTranscript = "";
   interimTranscript = "";
-  audioChunks = [];
   lastRecognitionError = null;
   recognitionEventLog = [];
   transcriptBox.classList.remove('empty');
   transcriptBox.textContent = "Listening...";
 
-  // Start SpeechRecognition before requesting a separate getUserMedia stream —
-  // on some Android/Chrome combinations, starting MediaRecorder's mic capture
-  // first starves SpeechRecognition of real audio (it reports audiostart but
-  // receives silence). Giving recognition the mic first avoids that.
   startRecognition();
-
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    mediaRecorder = new MediaRecorder(stream);
-    mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
-    mediaRecorder.onstop = () => {
-      const blob = new Blob(audioChunks, { type: 'audio/webm' });
-      audioBlobUrl = URL.createObjectURL(blob);
-      audioArea.innerHTML = `
-        <div class="audio-playback">
-          <span class="lbl">Your recording</span>
-          <audio controls src="${audioBlobUrl}"></audio>
-        </div>
-      `;
-    };
-    mediaRecorder.start();
-  } catch(err) {
-    errorArea.innerHTML = `<div class="error-box">Microphone access was denied or unavailable. Please allow microphone access and try again.</div>`;
-    recordBtn.disabled = false;
-    newTopicBtn.disabled = false;
-    retryTopicBtn.disabled = false;
-    return;
-  }
 
   recording = true;
   timeLeft = selectedDuration;
@@ -267,10 +249,6 @@ function finishRecording(){
 
   if (recognition) {
     try { recognition.stop(); } catch(e){}
-  }
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-    mediaRecorder.stop();
-    mediaRecorder.stream.getTracks().forEach(t => t.stop());
   }
 
   recordBtn.disabled = false;
