@@ -30,6 +30,7 @@ let mediaRecorder = null;
 let audioChunks = [];
 let audioBlobUrl = null;
 let finalTranscript = "";
+let fluencyMetrics = null;
 let timerInterval = null;
 let countdownInterval = null;
 let timeLeft = 60;
@@ -89,6 +90,7 @@ durationSelect.addEventListener('click', (e) => {
 
 function resetSession(){
   finalTranscript = "";
+  fluencyMetrics = null;
   transcriptBox.textContent = "Your transcript will appear here after you finish recording.";
   transcriptBox.classList.add('empty');
   analyzeBtn.disabled = true;
@@ -142,6 +144,7 @@ function beginCountdown(){
 async function startRecording(){
   errorArea.innerHTML = "";
   finalTranscript = "";
+  fluencyMetrics = null;
   audioChunks = [];
   transcriptBox.classList.remove('empty');
   transcriptBox.textContent = "Recording...";
@@ -231,6 +234,7 @@ async function transcribeAudio(blob){
 
     const finalText = (data.text || '').trim();
     finalTranscript = finalText;
+    fluencyMetrics = data.fluency || null;
 
     if (finalText.length < 5) {
       setStatus('idle', 'No speech detected — try again');
@@ -270,7 +274,7 @@ analyzeBtn.addEventListener('click', async () => {
     const response = await fetch('/api/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ topic: currentTopic, transcript })
+      body: JSON.stringify({ topic: currentTopic, transcript, fluency: fluencyMetrics })
     });
 
     const data = await response.json();
@@ -331,11 +335,6 @@ function renderReport(result, transcript){
 
   reportArea.innerHTML = `
     <div class="report">
-      <div class="disclaimer">
-        <span class="ic">i</span>
-        <span>This estimate is based only on your transcribed words (grammar and vocabulary) — it does not assess pronunciation, intonation, or real-time fluency, since those aren't captured by text transcription. Treat it as a rough guide, not an official score.</span>
-      </div>
-
       <div class="report-head">
         <div>
           <span class="cefr-badge">${escapeHtml(result.cefr_level || '?')}</span>

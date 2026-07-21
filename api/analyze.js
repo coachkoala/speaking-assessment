@@ -9,7 +9,7 @@ const SYSTEM_PROMPT = `You are a certified English language examiner trained in 
   "categories": {
     "grammar_accuracy": { "score": number (0-100), "note": "short specific note" },
     "vocabulary_range": { "score": number (0-100), "note": "short specific note" },
-    "fluency_coherence": { "score": number (0-100), "note": "short specific note" },
+    "fluency_coherence": { "score": number (0-100), "note": "short specific note, citing the speech timing data (pace, pauses) when it's provided" },
     "task_response": { "score": number (0-100), "note": "short specific note" }
   },
   "strengths": ["short point 1", "short point 2"],
@@ -31,7 +31,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { topic, transcript } = req.body || {};
+  const { topic, transcript, fluency } = req.body || {};
   if (!topic || !transcript) {
     return res.status(400).json({ error: 'Missing topic or transcript' });
   }
@@ -43,10 +43,14 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Server is missing API configuration' });
   }
 
+  const fluencyNote = fluency
+    ? `\n\nSpeech timing data measured from the actual audio (not estimated): speaking pace ~${fluency.wordsPerMinute} words per minute, ${fluency.pauseCount} noticeable pause(s) totaling ${fluency.totalPauseSeconds}s (longest single pause: ${fluency.longestPauseSeconds}s), total speaking duration ${fluency.durationSeconds}s. Use this real timing data, not just sentence structure, to inform the fluency_coherence score and note.`
+    : '';
+
   const userPrompt = `Topic given to the speaker: "${topic}"
 
 Transcript of their spoken response:
-"${transcript}"
+"${transcript}"${fluencyNote}
 
 Provide the JSON assessment now.`;
 
