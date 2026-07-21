@@ -37,6 +37,7 @@ let countdownInterval = null;
 let timeLeft = 60;
 let recording = false;
 let inCountdown = false;
+let lastRecognitionError = null;
 
 const questionText = document.getElementById('questionText');
 const newTopicBtn = document.getElementById('newTopicBtn');
@@ -137,6 +138,7 @@ function startRecognition(){
   };
 
   recognition.onerror = (event) => {
+    lastRecognitionError = event.error;
     if (event.error === 'no-speech') return;
     console.warn('Speech recognition error:', event.error);
   };
@@ -190,6 +192,7 @@ async function startRecording(){
   finalTranscript = "";
   interimTranscript = "";
   audioChunks = [];
+  lastRecognitionError = null;
   transcriptBox.classList.remove('empty');
   transcriptBox.textContent = "Listening...";
 
@@ -262,7 +265,8 @@ function finishRecording(){
   if (finalText.length < 5) {
     setStatus('idle', 'No speech detected — try again');
     transcriptBox.classList.add('empty');
-    transcriptBox.textContent = "No speech was captured. Please try recording again.";
+    const reason = lastRecognitionError ? ` (reason: ${lastRecognitionError})` : '';
+    transcriptBox.textContent = `No speech was captured. Please try recording again.${reason}`;
     analyzeBtn.disabled = true;
   } else {
     setStatus('done', 'Recording complete — ready to analyze');
