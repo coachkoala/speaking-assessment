@@ -1,5 +1,5 @@
-// Vercel Serverless Function — keeps the API key and base URL on the server.
-// The browser only ever talks to /api/analyze, never to the external LLM endpoint directly.
+// Vercel Serverless Function — keeps the OpenAI API key on the server.
+// The browser only ever talks to /api/analyze, never to OpenAI directly.
 
 const SYSTEM_PROMPT = `You are a certified English language examiner trained in CEFR and IELTS speaking assessment frameworks. You will receive a transcript of a spoken English response to a small-talk topic. Analyze it and respond ONLY with a valid JSON object (no markdown fences, no preamble) with this exact structure:
 
@@ -36,11 +36,10 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing topic or transcript' });
   }
 
-  const API_KEY = process.env.API_KEY;
-  const API_BASE = process.env.API_BASE;
-  const MODEL = process.env.MODEL || 'qd/DeepSeek-V4-Flash';
+  const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+  const MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
-  if (!API_KEY || !API_BASE) {
+  if (!OPENAI_API_KEY) {
     return res.status(500).json({ error: 'Server is missing API configuration' });
   }
 
@@ -52,10 +51,10 @@ Transcript of their spoken response:
 Provide the JSON assessment now.`;
 
   try {
-    const upstream = await fetch(`${API_BASE}/chat/completions`, {
+    const upstream = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${API_KEY}`,
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -64,7 +63,8 @@ Provide the JSON assessment now.`;
           { role: 'system', content: SYSTEM_PROMPT },
           { role: 'user', content: userPrompt }
         ],
-        temperature: 0.4
+        temperature: 0.4,
+        response_format: { type: 'json_object' }
       })
     });
 

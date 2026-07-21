@@ -26,16 +26,15 @@ const TOPICS = [
 
 let currentTopic = "";
 let selectedDuration = 60;
-let recognition = null;
+let mediaRecorder = null;
+let audioChunks = [];
+let audioBlobUrl = null;
 let finalTranscript = "";
-let interimTranscript = "";
 let timerInterval = null;
 let countdownInterval = null;
 let timeLeft = 60;
 let recording = false;
 let inCountdown = false;
-let lastRecognitionError = null;
-let recognitionEventLog = [];
 
 const questionText = document.getElementById('questionText');
 const newTopicBtn = document.getElementById('newTopicBtn');
@@ -50,6 +49,7 @@ const stopBtn = document.getElementById('stopBtn');
 const statusDot = document.getElementById('statusDot');
 const statusText = document.getElementById('statusText');
 const transcriptBox = document.getElementById('transcriptBox');
+const audioArea = document.getElementById('audioArea');
 const analyzeBtn = document.getElementById('analyzeBtn');
 const errorArea = document.getElementById('errorArea');
 const loadingArea = document.getElementById('loadingArea');
@@ -89,12 +89,13 @@ durationSelect.addEventListener('click', (e) => {
 
 function resetSession(){
   finalTranscript = "";
-  interimTranscript = "";
-  transcriptBox.textContent = "Your live transcript will appear here while recording.";
+  transcriptBox.textContent = "Your transcript will appear here after you finish recording.";
   transcriptBox.classList.add('empty');
   analyzeBtn.disabled = true;
   reportArea.innerHTML = "";
   errorArea.innerHTML = "";
+  audioArea.innerHTML = "";
+  if (audioBlobUrl) { URL.revokeObjectURL(audioBlobUrl); audioBlobUrl = null; }
   timeLeft = selectedDuration;
   timerDisplay.textContent = timeLeft;
   timerLabel.textContent = "seconds ready";
@@ -107,70 +108,10 @@ function setStatus(kind, text){
   statusText.textContent = text;
 }
 
-function checkSpeechSupport(){
-  return ('webkitSpeechRecognition' in window) || ('SpeechRecognition' in window);
-}
-
-function startRecognition(){
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  recognition = new SpeechRecognition();
-  recognition.continuous = true;
-  recognition.interimResults = true;
-  recognition.lang = 'en-US';
-
-  recognition.onstart = () => recognitionEventLog.push('start');
-  recognition.onaudiostart = () => recognitionEventLog.push('audiostart');
-  recognition.onsoundstart = () => recognitionEventLog.push('soundstart');
-  recognition.onspeechstart = () => recognitionEventLog.push('speechstart');
-  recognition.onspeechend = () => recognitionEventLog.push('speechend');
-  recognition.onsoundend = () => recognitionEventLog.push('soundend');
-  recognition.onaudioend = () => recognitionEventLog.push('audioend');
-  recognition.onnomatch = () => recognitionEventLog.push('nomatch');
-
-  recognition.onresult = (event) => {
-    recognitionEventLog.push('result');
-    interimTranscript = "";
-    for (let i = event.resultIndex; i < event.results.length; i++) {
-      const transcript = event.results[i][0].transcript;
-      if (event.results[i].isFinal) {
-        finalTranscript += transcript + " ";
-      } else {
-        interimTranscript += transcript;
-      }
-    }
-    transcriptBox.classList.remove('empty');
-    transcriptBox.textContent = (finalTranscript + interimTranscript).trim() || "...";
-  };
-
-  recognition.onerror = (event) => {
-    lastRecognitionError = event.error;
-    recognitionEventLog.push('error:' + event.error);
-    if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-      abortRecordingWithError('Microphone access was denied or unavailable. Please allow microphone access and try again.');
-      return;
-    }
-    if (event.error === 'no-speech') return;
-    console.warn('Speech recognition error:', event.error);
-  };
-
-  recognition.onend = () => {
-    recognitionEventLog.push('end');
-    if (recording) {
-      try { recognition.start(); } catch(e){}
-    }
-  };
-
-  recognition.start();
-}
-
 // ---------- Countdown before recording ----------
 function beginCountdown(){
   if (!currentTopic) {
     errorArea.innerHTML = `<div class="error-box">Please click "New Topic" first to get a question.</div>`;
-    return;
-  }
-  if (!checkSpeechSupport()) {
-    errorArea.innerHTML = `<div class="error-box">Your browser doesn't support live speech recognition. Please use Google Chrome or Microsoft Edge on desktop for this feature.</div>`;
     return;
   }
 
@@ -198,28 +139,36 @@ function beginCountdown(){
   }, 800);
 }
 
-function abortRecordingWithError(message){
-  recording = false;
-  clearInterval(timerInterval);
-  wave.classList.add('idle');
-  stageEl.classList.remove('is-recording');
-  recordBtn.disabled = false;
-  stopBtn.disabled = true;
-  newTopicBtn.disabled = false;
-  retryTopicBtn.disabled = false;
-  errorArea.innerHTML = `<div class="error-box">${message}</div>`;
-}
-
-function startRecording(){
+async function startRecording(){
   errorArea.innerHTML = "";
   finalTranscript = "";
-  interimTranscript = "";
-  lastRecognitionError = null;
-  recognitionEventLog = [];
+  audioChunks = [];
   transcriptBox.classList.remove('empty');
-  transcriptBox.textContent = "Listening...";
+  transcriptBox.textContent = "Recording...";
 
-  startRecognition();
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+      audioBlobUrl = URL.createObjectURL(blob);
+      audioArea.innerHTML = `
+        <div class="audio-playback">
+          <span class="lbl">Your recording</span>
+          <audio controls src="${audioBlobUrl}"></audio>
+        </div>
+      `;
+      transcribeAudio(blob);
+    };
+    mediaRecorder.start();
+  } catch(err) {
+    errorArea.innerHTML = `<div class="error-box">Microphone access was denied or unavailable. Please allow microphone access and try again.</div>`;
+    recordBtn.disabled = false;
+    newTopicBtn.disabled = false;
+    retryTopicBtn.disabled = false;
+    return;
+  }
 
   recording = true;
   timeLeft = selectedDuration;
@@ -247,8 +196,9 @@ function finishRecording(){
   wave.classList.add('idle');
   stageEl.classList.remove('is-recording');
 
-  if (recognition) {
-    try { recognition.stop(); } catch(e){}
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop();
+    mediaRecorder.stream.getTracks().forEach(t => t.stop());
   }
 
   recordBtn.disabled = false;
@@ -257,17 +207,48 @@ function finishRecording(){
   retryTopicBtn.disabled = false;
   timerLabel.textContent = "seconds — done";
 
-  const finalText = (finalTranscript + interimTranscript).trim();
-  if (finalText.length < 5) {
-    setStatus('idle', 'No speech detected — try again');
+  setStatus('wait', 'Transcribing your recording...');
+  transcriptBox.classList.add('empty');
+  transcriptBox.textContent = "Transcribing...";
+  analyzeBtn.disabled = true;
+}
+
+// ---------- Transcription ----------
+// The OpenAI API key lives server-side in /api/transcribe — never sent to the browser.
+async function transcribeAudio(blob){
+  try {
+    const response = await fetch('/api/transcribe', {
+      method: 'POST',
+      headers: { 'Content-Type': blob.type || 'audio/webm' },
+      body: blob
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || `Request failed with status ${response.status}`);
+    }
+
+    const finalText = (data.text || '').trim();
+    finalTranscript = finalText;
+
+    if (finalText.length < 5) {
+      setStatus('idle', 'No speech detected — try again');
+      transcriptBox.classList.add('empty');
+      transcriptBox.textContent = "No speech was captured. Please try recording again.";
+      analyzeBtn.disabled = true;
+    } else {
+      setStatus('done', 'Recording complete — ready to analyze');
+      transcriptBox.classList.remove('empty');
+      transcriptBox.textContent = finalText;
+      analyzeBtn.disabled = false;
+    }
+  } catch(err) {
+    setStatus('idle', 'Transcription failed — try again');
+    errorArea.innerHTML = `<div class="error-box">Transcription failed: ${err.message}. Please check your connection and try again.</div>`;
     transcriptBox.classList.add('empty');
-    const events = recognitionEventLog.length ? ` (events: ${recognitionEventLog.join(', ')})` : ' (events: none — recognition never fired)';
-    transcriptBox.textContent = `No speech was captured. Please try recording again.${events}`;
+    transcriptBox.textContent = "Transcription failed.";
     analyzeBtn.disabled = true;
-  } else {
-    setStatus('done', 'Recording complete — ready to analyze');
-    transcriptBox.textContent = finalText;
-    analyzeBtn.disabled = false;
   }
 }
 
@@ -277,7 +258,7 @@ stopBtn.addEventListener('click', finishRecording);
 // ---------- Analysis ----------
 // API key / base URL / model live server-side in /api/analyze — never sent to the browser.
 analyzeBtn.addEventListener('click', async () => {
-  const transcript = (finalTranscript + interimTranscript).trim();
+  const transcript = finalTranscript.trim();
   if (!transcript) return;
 
   errorArea.innerHTML = "";
